@@ -1,88 +1,70 @@
-const CACHE_NAME = 'v1_cache_josue';
+//impots
+importScripts('js/sw-utils.js');
 
+const STATIC_CACHE = 'staticv2';
+const DYMAMIC_CACHE = 'dynamicv1';
+const INMUTABLE_CACHE = 'inmutablev1';
 
-var urlsToCache = [
-
-'/',
-'.css/estilos.css',
-'./img/1.png',
-'./img/2.png',
-'./img/3.png',
-'./img/4.png',
-'./img/5.png',
-'./img/facebook.png',
-'./img/instragram.png',
-'./img/twitter.png',
-'./img/icon-128x128.png',
-'./img/icon-144x144.png',
-'./img/icon-152x152.png',
-'./img/icon-192x192.png',
-'./img/icon-384x384.png',
-'./img/icon-512x512.png',
-'./img/icon-72x72.png',
-'./img/icon-96x96.png',
-'./img/favicon.png'
-
+const APP_SHELL = [
+    '/',
+    'css/style.css',
+    'img/favicon.ico',
+    'img/avatars/hulk.jpg',
+    'img/avatars/ironman.jpg',
+    'img/avatars/spiderman.jpg',
+    'img/avatars/thor.jpg',
+    'img/avatars/wolverine.jpg',
+    'js/app.js',
+    'js/sw-utils.js',
 ];
 
-// Evento install
-// Instalación del service worker y guardar en cache los recursos estaticos
+const APP_SHELL_INMUTABLE = [
+    'https://fonts.googleapis.com/css?family=Quicksand:300,400',
+    'https://fonts.googleapis.com/css?family=Lato:400,300',
+    'https://use.fontawesome.com/releases/v5.3.1/css/all.css',
+    'css/animate.css',
+    'js/libs/jquery.js'
+];
+
 self.addEventListener('install', e => {
-	e.waitUntil(
-		caches.open(CACHE_NAME)
-			  .then(cache => {
-			  	  return cache.addAll(urlsToCache)
-			  	  			  .then(() => {
-			  	  			  	self.skipWaiting();
-			  	  			  });
- 
-			  })
-	  		  .catch(err => console.log('No se ha registrado el cache', err))
-	);
+
+    const cacheStatic = caches.open(STATIC_CACHE).then(cache =>
+        cache.addAll(APP_SHELL));
+
+    const cacheInmutable = caches.open(DYMAMIC_CACHE).then(cache =>
+        cache.addAll(APP_SHELL_INMUTABLE));
+
+
+
+    e.waitUntil(Promise.all([cacheStatic, cacheInmutable]));
 });
- 
-// Evento activate
-// Que la app funcione sin conexión
+
 self.addEventListener('activate', e => {
-	const cacheWhitelist = [CACHE_NAME];
- 
-	e.waitUntil(
-		caches.keys()
-			  .then(cacheNames => {
-			  	return Promise.all(
-			  		cacheNames.map(cacheName => {
- 
-			  			if(cacheWhitelist.indexOf(cacheName) === -1){
-			  				// Borrar elementos que no se necesitan
-			  				return caches.delete(cacheName);
-			  			}
- 
-			  		})
-			  	);
-			  })
-			  .then(() => {
-			  	// Activar cache
-			  	self.clients.claim();
-			  })
- 
-	);
- 
+
+    const respuesta = caches.keys().then(keys => {
+        keys.forEach(key => {
+            if (key != STATIC_CACHE && key.includes('static')) {
+                return caches.delete(key);
+            }
+        });
+    });
+
+    e.waitUntil(respuesta);
+
 });
- 
-// Evento fetch
-self.addEventListener('fetch', e => {
- 
-	e.respondWith(
-		caches.match(e.request)
-			  .then(res => {
-			  	 if(res){
-			  	 	// devuelvo datos desde cache
-			  	 	return res;
-			  	 }
- 
-			  	 return fetch(e.request)
-			  })
- 
-	);
- 
-});
+
+self.addEventListener('fetch',e=>{
+    const respuesta = caches.match(e.request).then(res=>{
+
+        if(res){
+            return res;
+        }else{
+            return fetch(e.request).then(newRes =>{
+                return actualizaCacheDinamico(DYMAMIC_CACHE, e.request, newRes);
+            });
+        }
+       
+    });
+
+    e.respondWith(respuesta);
+})
